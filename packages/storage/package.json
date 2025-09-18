@@ -1,0 +1,22 @@
+{
+  "name": "@hyperlocal/storage",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch ./src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "duckdb": "^1.0.0",
+    "parquets": "^0.10.10",
+    "uuid": "^9.0.1",
+    "@hyperlocal/core": "workspace:*",
+    "@hyperlocal/types": "workspace:*"
+  }
+}

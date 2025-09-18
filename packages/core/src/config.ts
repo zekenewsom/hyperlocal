@@ -34,22 +34,42 @@ function readYaml(file: string): any {
   return YAML.parse(txt) ?? {};
 }
 
+function findConfigsRoot(startDir: string): string | null {
+  let cur = path.resolve(startDir);
+  const fsRoot = path.parse(cur).root;
+  // Walk up until filesystem root
+  while (cur !== fsRoot) {
+    const candidate = path.join(cur, 'configs', 'default.config.yaml');
+    if (fs.existsSync(candidate)) return path.join(cur, 'configs');
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+  }
+  // Check root once more
+  const rootCandidate = path.join(fsRoot, 'configs', 'default.config.yaml');
+  if (fs.existsSync(rootCandidate)) return path.join(fsRoot, 'configs');
+  return null;
+}
+
 export function loadConfig(): AppConfig {
-  const root = process.cwd();
-  const defaultPath = path.join(root, 'configs', 'default.config.yaml');
-  const localPath = path.join(root, 'configs', 'local.config.yaml');
   const envPath = process.env.HYPERLOCAL_CONFIG ? path.resolve(process.env.HYPERLOCAL_CONFIG) : null;
 
+  const configsRoot = findConfigsRoot(process.cwd());
+  const defaultPath = configsRoot ? path.join(configsRoot, 'default.config.yaml') : '';
+  const localPath = configsRoot ? path.join(configsRoot, 'local.config.yaml') : '';
+
   const merged = {
-    ...readYaml(defaultPath),
-    ...readYaml(localPath),
+    ...(defaultPath ? readYaml(defaultPath) : {}),
+    ...(localPath ? readYaml(localPath) : {}),
     ...(envPath ? readYaml(envPath) : {})
   };
   const parsed = ConfigSchema.safeParse(merged);
   if (!parsed.success) {
     const issues = parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('\n');
-    throw new Error('Config validation failed:\n' + issues);
+    const hint = configsRoot
+      ? `configsRoot=${configsRoot}`
+      : 'configs/ directory not found upward from ' + process.cwd();
+    throw new Error('Config validation failed:\n' + issues + `\n[hint] ${hint}`);
   }
   return parsed.data;
 }
-

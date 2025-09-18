@@ -9,10 +9,19 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "ci": "pnpm typecheck && pnpm lint && pnpm test && pnpm check:forbidden",
-    "check:forbidden": "node scripts/forbidden-check.cjs"
+    "check:forbidden": "node scripts/forbidden-check.cjs",
+    "db:init": "hyperlocal db:init",
+    "storage:seed": "hyperlocal storage:seed",
+    "storage:verify": "hyperlocal storage:verify"
+  },
+  "dependencies": {
+    "duckdb": "^1.0.0",
+    "parquets": "^0.10.10",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
+    "@types/uuid": "^9.0.8",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "eslint": "^8.57.0",
@@ -21,6 +30,7 @@
     "vitest": "^1.6.0",
     "@vitest/ui": "^1.6.0",
     "typescript": "^5.4.2",
-    "globby": "^14.0.1"
+    "globby": "^14.0.1",
+    "@hyperlocal/cli": "workspace:*"
   }
 }

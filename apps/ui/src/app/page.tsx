@@ -8,8 +8,8 @@ export default function Home() {
       <nav className="space-x-4">
         <Link className="underline" href="/health">Health</Link>
         <Link className="underline" href="/settings">Settings</Link>
+        <Link className="underline" href="/data-health">Data Health</Link>
       </nav>
     </main>
   );
 }
-

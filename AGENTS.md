@@ -12,7 +12,7 @@
 - `pnpm test`: run unit/integration tests.
 - `pnpm typecheck`: TypeScript project references build check.
 - `pnpm lint`: ESLint + Prettier.
-- `pnpm ci`: typecheck, lint, tests, build, forbidden-symbols scan.
+- `pnpm run ci`: typecheck, lint, tests, and forbidden-symbols scan.
 - `pnpm backfill -- --coin=BTC --interval=1m --days=120`: on-demand backfill.
 - `pnpm compact -- --min-file-rows=50000`: Parquet compaction.
 

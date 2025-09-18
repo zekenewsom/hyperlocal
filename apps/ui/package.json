@@ -17,7 +17,8 @@
     "react-dom": "^18.2.0",
     "zustand": "^4.5.2",
     "@hyperlocal/core": "workspace:*",
-    "@hyperlocal/types": "workspace:*"
+    "@hyperlocal/types": "workspace:*",
+    "@hyperlocal/storage": "workspace:*"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.18",

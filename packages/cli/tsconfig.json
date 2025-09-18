@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@hyperlocal/storage": ["../storage/src/index.ts"],
+      "@hyperlocal/types": ["../types/src/index.ts"],
+      "@hyperlocal/core": ["../core/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

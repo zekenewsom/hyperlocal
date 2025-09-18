@@ -1,3 +1,2 @@
-export { loadConfig, ConfigSchema, type AppConfig } from './config';
-export { log } from './log';
-
+export { loadConfig, ConfigSchema, type AppConfig } from './config.js';
+export { log } from './log.js';

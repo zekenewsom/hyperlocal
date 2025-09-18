@@ -3,12 +3,30 @@
   "compilerOptions": {
     "baseUrl": ".",
     "jsx": "preserve",
-    "types": ["react", "react-dom", "node"],
+    "types": [
+      "react",
+      "react-dom",
+      "node"
+    ],
     "paths": {
-      "@/*": ["./src/*"],
-      "@hyperlocal/core": ["../../packages/core/src/index.ts"],
-      "@hyperlocal/types": ["../../packages/types/src/index.ts"]
-    }
+      "@/*": [
+        "./src/*"
+      ]
+    },
+    "allowJs": true,
+    "noEmit": true,
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
   },
-  "include": ["src"]
+  "include": [
+    "src",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }
