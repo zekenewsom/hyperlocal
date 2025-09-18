@@ -1,0 +1,39 @@
+# Node & package managers
+node_modules/
+.pnpm-store/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TypeScript, build outputs, caches
+**/dist/
+**/*.tsbuildinfo
+.eslintcache
+.vitest/
+coverage/
+
+# Next.js
+apps/ui/.next/
+apps/ui/out/
+.vercel/
+
+# Env & local config
+.env
+.env.*
+configs/local.config.yaml
+
+# Data storage (local-only artifacts)
+data/
+!data/.gitkeep
+**/*.parquet
+**/*.duckdb
+**/*.duckdb.wal
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+

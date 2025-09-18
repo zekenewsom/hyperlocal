@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "jsx": "preserve",
+    "types": ["react", "react-dom", "node"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@hyperlocal/core": ["../../packages/core/src/index.ts"],
+      "@hyperlocal/types": ["../../packages/types/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

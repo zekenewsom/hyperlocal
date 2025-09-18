@@ -1,0 +1,14 @@
+universe: ["BTC"]
+intervals: ["1m","5m","15m","1h","4h","1d"]
+storage_root: "./data/hyperliquid"
+retention: { candles_days: 0 }
+ui: { theme: "dark", timezone: "America/New_York" }
+ws: { url: "wss://api.hyperliquid.xyz/ws", heartbeat_sec: 45 }
+backfill: { lookback_days: 120, window_candles: 3000, max_concurrency: 2 }
+signals:
+  presets: ["momentum_mtf","meanrev_bands","breakout_volexp","obi_threshold","cvd_inflect","anomaly_spike"]
+  scoring: { combine: "weighted", weights: { momentum: 2, meanrev: 1, breakout: 1.5, obi: 1.25, cvd: 1.25, anomaly: 0.75 } }
+backtest:
+  costs_bps: { maker: 1.0, taker: 5.0 }
+  slippage: { model: "depth_proxy", depth_levels: 5 }
+
