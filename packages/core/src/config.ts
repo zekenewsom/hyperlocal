@@ -22,7 +22,17 @@ export const ConfigSchema = z.object({
   retention: z.object({ candles_days: z.number().int().min(0) }),
   ui: z.object({ theme: z.enum(['dark','light']).default('dark'), timezone: z.string() }),
   ws: z.object({ url: z.string().url(), heartbeat_sec: z.number().int().min(10) }),
-  backfill: z.object({ lookback_days: z.number().int().min(1), window_candles: z.number().int().min(100).max(5000), max_concurrency: z.number().int().min(1).max(8) }),
+  backfill: z.object({
+    lookback_days: z.number().int().min(1),
+    window_candles: z.number().int().min(100).max(5000),
+    max_concurrency: z.number().int().min(1).max(8),
+    min_candles_per_interval: z.number().int().min(0).default(5000)
+  }),
+  binance: z.object({
+    enabled: z.boolean().default(true),
+    base_url: z.string().url().default('https://api.binance.us'),
+    weight_per_min: z.number().int().min(1).default(600)
+  }).default({ enabled: true, base_url: 'https://api.binance.us', weight_per_min: 600 }),
   signals: z.object({ presets: z.array(z.string()), scoring: Scoring }),
   backtest: z.object({ costs_bps: z.object({ maker: z.number(), taker: z.number() }), slippage: z.object({ model: z.enum(['depth_proxy']), depth_levels: z.number().int().min(1) }) })
 });

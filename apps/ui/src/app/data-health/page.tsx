@@ -7,6 +7,8 @@ type Status = {
   parquet_root: string;
   parquet_files: number;
   candles_rows: number;
+  breakdown?: Array<{ coin: string; interval: string; rows: number; min_ms: number; max_ms: number }>;
+  breakdown_by_source?: Array<{ src: string; coin: string; interval: string; rows: number; min_ms: number; max_ms: number }>;
 };
 
 export default function DataHealth() {
@@ -53,10 +55,73 @@ export default function DataHealth() {
         </div>
         {msg && <div className="text-neutral-400 text-sm mt-2">{msg}</div>}
       </div>
+      <div className="rounded-xl border border-neutral-800 p-4 space-y-3">
+        <div className="text-sm text-neutral-400">Per-interval breakdown</div>
+        <div className="overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="text-neutral-400">
+              <tr>
+                <th className="text-left font-medium pr-4">Coin</th>
+                <th className="text-left font-medium pr-4">Interval</th>
+                <th className="text-right font-medium pr-4">Rows</th>
+                <th className="text-left font-medium">Range (local)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {st?.breakdown?.map((b, idx) => (
+                <tr key={idx} className="border-t border-neutral-800">
+                  <td className="py-2 pr-4 font-mono">{b.coin}</td>
+                  <td className="py-2 pr-4 font-mono">{b.interval}</td>
+                  <td className="py-2 pr-4 text-right">{b.rows}</td>
+                  <td className="py-2">
+                    {b.min_ms && b.max_ms ? `${new Date(b.min_ms).toLocaleString()} → ${new Date(b.max_ms).toLocaleString()}` : '-'}
+                  </td>
+                </tr>
+              )) || (
+                <tr>
+                  <td colSpan={4} className="py-2 text-neutral-400">No data.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div className="rounded-xl border border-neutral-800 p-4 space-y-3">
+        <div className="text-sm text-neutral-400">Per-source breakdown</div>
+        <div className="overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="text-neutral-400">
+              <tr>
+                <th className="text-left font-medium pr-4">Source</th>
+                <th className="text-left font-medium pr-4">Coin</th>
+                <th className="text-left font-medium pr-4">Interval</th>
+                <th className="text-right font-medium pr-4">Rows</th>
+                <th className="text-left font-medium">Range (local)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {st?.breakdown_by_source?.map((b, idx) => (
+                <tr key={idx} className="border-t border-neutral-800">
+                  <td className="py-2 pr-4 font-mono">{b.src}</td>
+                  <td className="py-2 pr-4 font-mono">{b.coin}</td>
+                  <td className="py-2 pr-4 font-mono">{b.interval}</td>
+                  <td className="py-2 pr-4 text-right">{b.rows}</td>
+                  <td className="py-2">
+                    {b.min_ms && b.max_ms ? `${new Date(b.min_ms).toLocaleString()} → ${new Date(b.max_ms).toLocaleString()}` : '-'}
+                  </td>
+                </tr>
+              )) || (
+                <tr>
+                  <td colSpan={5} className="py-2 text-neutral-400">No data.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
       <p className="text-neutral-400 text-sm">
         Tip: use the CLI to seed sample data: <code>pnpm storage:seed</code> then refresh.
       </p>
     </main>
   );
 }
-

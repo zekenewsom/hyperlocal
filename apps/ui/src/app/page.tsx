@@ -9,6 +9,9 @@ export default function Home() {
         <Link className="underline" href="/health">Health</Link>
         <Link className="underline" href="/settings">Settings</Link>
         <Link className="underline" href="/data-health">Data Health</Link>
+        <Link className="underline" href={"/ingestor" as any}>Ingestor</Link>
+        <span className="mx-2 text-neutral-600">|</span>
+        <Link className="underline" href={"/explorer" as any}>Explorer</Link>
       </nav>
     </main>
   );

@@ -1,0 +1,22 @@
+{
+  "name": "@hyperlocal/ingestor",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "src/index.ts",
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch ./src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hyperlocal/core": "workspace:*",
+    "@hyperlocal/analytics": "workspace:*",
+    "@hyperlocal/types": "workspace:*",
+    "@hyperlocal/storage": "workspace:*",
+    "ws": "^8.18.0"
+  }
+}

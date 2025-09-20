@@ -12,25 +12,28 @@
     "check:forbidden": "node scripts/forbidden-check.cjs",
     "db:init": "hyperlocal db:init",
     "storage:seed": "hyperlocal storage:seed",
-    "storage:verify": "hyperlocal storage:verify"
+    "storage:verify": "hyperlocal storage:verify",
+    "binance:backfill": "python3 scripts/binance_backfill.py"
   },
   "dependencies": {
     "duckdb": "^1.0.0",
+    "lightweight-charts": "^5.0.8",
     "parquets": "^0.10.10",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@hyperlocal/cli": "workspace:*",
     "@types/node": "^20.11.24",
     "@types/uuid": "^9.0.8",
+    "@types/ws": "^8.5.10",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
+    "@vitest/ui": "^1.6.0",
     "eslint": "^8.57.0",
+    "globby": "^14.0.1",
     "prettier": "^3.2.5",
     "tsx": "^4.16.2",
-    "vitest": "^1.6.0",
-    "@vitest/ui": "^1.6.0",
     "typescript": "^5.4.2",
-    "globby": "^14.0.1",
-    "@hyperlocal/cli": "workspace:*"
+    "vitest": "^1.6.0"
   }
 }

@@ -119,3 +119,68 @@ export async function storageStatus(): Promise<{
 
   return { db_exists: dbExists, parquet_root: root, parquet_files: files, candles_rows: rows };
 }
+
+export async function candlesBreakdown(): Promise<Array<{ coin: string; interval: string; rows: number; min_ms: number; max_ms: number }>> {
+  const out: Array<{ coin: string; interval: string; rows: number; min_ms: number; max_ms: number }> = [];
+  if (!fs.existsSync(dbPath())) return out;
+  const conn = getDb().connect();
+  try {
+    await createParquetViews(conn);
+    const rows = await sql(conn, `
+      SELECT coin, interval, COUNT(*) AS c, MIN(open_time) AS min_ms, MAX(open_time) AS max_ms
+      FROM candles_pq
+      GROUP BY coin, interval
+      ORDER BY coin, interval;
+    `);
+    for (const r of rows) {
+      const c = (r as any).c;
+      const minv = (r as any).min_ms;
+      const maxv = (r as any).max_ms;
+      out.push({
+        coin: String((r as any).coin),
+        interval: String((r as any).interval),
+        rows: typeof c === 'bigint' ? Number(c) : Number(c ?? 0),
+        min_ms: typeof minv === 'bigint' ? Number(minv) : Number(minv ?? 0),
+        max_ms: typeof maxv === 'bigint' ? Number(maxv) : Number(maxv ?? 0),
+      });
+    }
+  } catch {
+    // ignore
+  } finally {
+    conn.close();
+  }
+  return out;
+}
+
+export async function candlesBreakdownBySource(): Promise<Array<{ src: string; coin: string; interval: string; rows: number; min_ms: number; max_ms: number }>> {
+  const out: Array<{ src: string; coin: string; interval: string; rows: number; min_ms: number; max_ms: number }> = [];
+  if (!fs.existsSync(dbPath())) return out;
+  const conn = getDb().connect();
+  try {
+    await createParquetViews(conn);
+    const rows = await sql(conn, `
+      SELECT src, coin, interval, COUNT(*) AS c, MIN(open_time) AS min_ms, MAX(open_time) AS max_ms
+      FROM candles_pq
+      GROUP BY src, coin, interval
+      ORDER BY src, coin, interval;
+    `);
+    for (const r of rows) {
+      const c = (r as any).c;
+      const minv = (r as any).min_ms;
+      const maxv = (r as any).max_ms;
+      out.push({
+        src: String((r as any).src),
+        coin: String((r as any).coin),
+        interval: String((r as any).interval),
+        rows: typeof c === 'bigint' ? Number(c) : Number(c ?? 0),
+        min_ms: typeof minv === 'bigint' ? Number(minv) : Number(minv ?? 0),
+        max_ms: typeof maxv === 'bigint' ? Number(maxv) : Number(maxv ?? 0),
+      });
+    }
+  } catch {
+    // ignore
+  } finally {
+    conn.close();
+  }
+  return out;
+}

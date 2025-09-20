@@ -66,7 +66,7 @@ export async function writeCandlesParquet(rows: Candle[]): Promise<string[]> {
     const writer = await ParquetWriter.openFile(candleSchema, file);
     for (const r of dayRows) {
       await writer.appendRow({
-        src: 'hyperliquid',
+        src: r.src,
         coin,
         interval,
         open_time: r.openTime,

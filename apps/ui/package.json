@@ -18,7 +18,9 @@
     "zustand": "^4.5.2",
     "@hyperlocal/core": "workspace:*",
     "@hyperlocal/types": "workspace:*",
-    "@hyperlocal/storage": "workspace:*"
+    "@hyperlocal/storage": "workspace:*",
+    "@hyperlocal/ingestor": "workspace:*",
+    "@hyperlocal/analytics": "workspace:*"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.18",

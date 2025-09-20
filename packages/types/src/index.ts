@@ -1,7 +1,7 @@
 export type Interval = '1m'|'5m'|'15m'|'1h'|'4h'|'1d';
 
 export interface Candle {
-  src: 'hyperliquid';
+  src: 'hyperliquid' | 'binance';
   coin: string;
   interval: Interval;
   openTime: number;
@@ -41,4 +41,3 @@ export interface RateBudget {
   subs:         { max: number; used: number };
   rest:         { throttleQps: number; tokens: number; capacity: number };
 }
-
