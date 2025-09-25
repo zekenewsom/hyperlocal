@@ -1,6 +1,6 @@
 import { getDb } from '@hyperlocal/storage';
 import type { Candle, L2Book, Bbo, Trade, Interval } from '@hyperlocal/types';
-import { EWVar, lambdaFromHalfLife, ATR, RSI, Stoch, RollingMeanStd } from '@hyperlocal/indicators';
+import { EWVar, lambdaFromHalfLife, ATR, RSI, Stoch, RollingMeanStd, EMA } from '@hyperlocal/indicators';
 import { microprice, obiTop, obiCum } from '@hyperlocal/indicators';
 import { loadConfig } from '@hyperlocal/core';
 
@@ -22,6 +22,8 @@ class PerSeries {
   // price/volatility
   ewvar: EWVar; atr: ATR; rsi: RSI; stoch: Stoch;
   volStat: RollingMeanStd;
+  // EMAs for overlays / MACD base
+  emaShort: EMA; emaLong: EMA;
   // for regimes & spikes
   ewvarShort: EWVar; ewvarLong: EWVar;
   // rolling book/trade info
@@ -37,6 +39,8 @@ class PerSeries {
     this.rsi = new RSI(14);
     this.stoch = new Stoch(14, 3);
     this.volStat = new RollingMeanStd(100);
+    this.emaShort = new EMA(12);
+    this.emaLong = new EMA(26);
   }
 }
 
@@ -131,6 +135,10 @@ export class FeatureEngine {
     s.volStat.push(c.volume);
     const vol_z = s.volStat.z(c.volume);
 
+    // EMAs (12/26)
+    const ema_s = s.emaShort.push(c.close);
+    const ema_l = s.emaLong.push(c.close);
+
     // orderbook + microprice at close using latest snapshot
     let obi_top = 0, obi_cum = 0, micro = Number.NaN;
     if (s.agg.book) {
@@ -166,13 +174,14 @@ export class FeatureEngine {
       const num = (x: number) => (Number.isFinite(x) ? String(x) : 'NULL');
       const str = (s: string) => `'${s.replace(/'/g, "''")}'`;
       const insertSql = `
-        INSERT OR REPLACE INTO features (
+        INSERT INTO features (
           src, coin, interval, close_time,
           ret_log, ret_pct, ewvar, ewvol, atr,
           rsi, stoch_k, stoch_d, vol_z,
           cvd, cvd_slope, obi_top, obi_cum, microprice,
           var_spike, vol_regime, volp,
           hh_ll_state, hh_count, hl_count,
+          ema_s, ema_l,
           computed_at
         ) VALUES (
           'hyperliquid', ${str(c.coin)}, ${str(c.interval)}, to_timestamp(${closeSec}),
@@ -181,9 +190,60 @@ export class FeatureEngine {
           ${num(cvd)}, ${num(cvd_slope)}, ${num(obi_top)}, ${num(obi_cum)}, ${num(micro)},
           ${num(var_spike)}, ${str(vol_regime)}, ${num(volp)},
           ${str(hh_ll_state)}, ${hh_count}, ${hl_count},
+          ${num(ema_s)}, ${num(ema_l)},
           now()
-        )`;
+        )
+        ON CONFLICT (src, coin, interval, close_time) DO UPDATE SET
+          ret_log=excluded.ret_log,
+          ret_pct=excluded.ret_pct,
+          ewvar=excluded.ewvar,
+          ewvol=excluded.ewvol,
+          atr=excluded.atr,
+          rsi=excluded.rsi,
+          stoch_k=excluded.stoch_k,
+          stoch_d=excluded.stoch_d,
+          vol_z=excluded.vol_z,
+          cvd=excluded.cvd,
+          cvd_slope=excluded.cvd_slope,
+          obi_top=excluded.obi_top,
+          obi_cum=excluded.obi_cum,
+          microprice=excluded.microprice,
+          var_spike=excluded.var_spike,
+          vol_regime=excluded.vol_regime,
+          volp=excluded.volp,
+          hh_ll_state=excluded.hh_ll_state,
+          hh_count=excluded.hh_count,
+          hl_count=excluded.hl_count,
+          ema_s=excluded.ema_s,
+          ema_l=excluded.ema_l,
+          computed_at=excluded.computed_at
+      `;
       await new Promise<void>((res, rej)=> conn.all(insertSql, (e)=> e?rej(e):res()));
+    } catch (e: any) {
+      const msg = String(e?.message ?? e ?? '');
+      if (msg.includes('Duplicate key')) {
+        const closeSec = c.closeTime / 1000.0;
+        const num = (x: number) => (Number.isFinite(x) ? String(x) : 'NULL');
+        const str = (s: string) => `'${s.replace(/'/g, "''")}'`;
+        const updateSql = `
+          UPDATE features SET
+            ret_log=${num(ret_log)}, ret_pct=${num(ret_pct)}, ewvar=${num(s.ewvar.value())}, ewvol=${num(v_ew)}, atr=${num(atr)},
+            rsi=${num(rsi)}, stoch_k=${num(stoch_k)}, stoch_d=${num(stoch_d)}, vol_z=${num(vol_z)},
+            cvd=${num(cvd)}, cvd_slope=${num(cvd_slope)}, obi_top=${num(obi_top)}, obi_cum=${num(obi_cum)}, microprice=${num(micro)},
+            var_spike=${num(var_spike)}, vol_regime=${str(vol_regime)}, volp=${num(volp)},
+            hh_ll_state=${str(hh_ll_state)}, hh_count=${hh_count}, hl_count=${hl_count},
+            ema_s=${num(ema_s)}, ema_l=${num(ema_l)},
+            computed_at=now()
+          WHERE src='hyperliquid' AND coin=${str(c.coin)} AND interval=${str(c.interval)} AND close_time=to_timestamp(${closeSec})
+        `;
+        try {
+          await new Promise<void>((res, rej)=> conn.all(updateSql, (err)=> err?rej(err):res()));
+        } catch (e2) {
+          console.error('[feature-engine] DB update error after duplicate:', e2);
+        }
+      } else {
+        console.error('[feature-engine] DB write error:', e);
+      }
     } finally {
       // keep connection open for reuse while running
     }

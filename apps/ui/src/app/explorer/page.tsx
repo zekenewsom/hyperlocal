@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createChart, LineSeries, CandlestickSeries } from 'lightweight-charts';
 
 type Candle = { t:number; open:number; high:number; low:number; close:number; volume:number; };
-type Feat = { t:number; rsi:number; atr:number; ewvol:number; vol_z:number; stoch_k:number; stoch_d:number; };
+type Feat = { t:number; rsi:number; atr:number; ewvol:number; vol_z:number; stoch_k:number; stoch_d:number; cvd?: number; ema_s?: number; ema_l?: number };
 
 export default function Explorer(){
   const [coin,setCoin]=useState('BTC'); const [itv,setItv]=useState('1m');
@@ -15,7 +15,7 @@ export default function Explorer(){
   function intervalSec(itv: string){
     switch(itv){ case '1m': return 60; case '5m': return 300; case '15m': return 900; case '1h': return 3600; case '4h': return 14400; case '1d': return 86400; default: return 60; }
   }
-  const [show, setShow] = useState({ rsi:false, atr:false, ewvol:false, stoch:false, volz:false });
+  const [show, setShow] = useState({ rsi:false, atr:false, ewvol:false, stoch:false, volz:false, cvd:false, ema12:false, ema26:false });
   const [cadenceSec, setCadenceSec] = useState<number|null>(null);
   const [timeSinceTick, setTimeSinceTick] = useState<number|null>(null);
 
@@ -93,6 +93,12 @@ export default function Explorer(){
   const priceRef = useRef<any>(null);
   const rsiRef = useRef<any>(null);
   const ewvolRef = useRef<any>(null);
+  const atrRef = useRef<any>(null);
+  const stochKRef = useRef<any>(null);
+  const stochDRef = useRef<any>(null);
+  const cvdRef = useRef<any>(null);
+  const emaSRef = useRef<any>(null);
+  const emaLRef = useRef<any>(null);
   const adjustingRangeRef = useRef(false);
 
   const fetchingOlderRef = useRef(false);
@@ -101,7 +107,13 @@ export default function Explorer(){
 
   useEffect(()=> {
     if(!containerRef.current) return;
-    const chart = createChart(containerRef.current, { height: 480, layout:{ textColor: '#ddd', background: { color: '#0a0a0a' } }, grid:{ vertLines:{ color:'#111'}, horzLines:{ color:'#111'} } });
+    const chart = createChart(containerRef.current, {
+      height: 600,
+      layout: { textColor: '#ddd', background: { color: '#0a0a0a' } },
+      grid: { vertLines: { color: '#1a1a1a' }, horzLines: { color: '#1a1a1a' } },
+      rightPriceScale: { borderVisible: false } as any,
+      timeScale: { borderVisible: false } as any,
+    });
     chartRef.current = chart;
     const price = chart.addSeries(CandlestickSeries); priceRef.current = price;
     // Hide last-value and price lines to avoid horizontal overlays
@@ -159,6 +171,7 @@ export default function Explorer(){
   useEffect(()=> {
     if (!priceRef.current) return;
     const toSec = (t:number) => t >= 1e12 ? Math.trunc(t/1000) : Math.trunc(t);
+    const isFiniteNum = (v: any): v is number => typeof v === 'number' && Number.isFinite(v);
     // Ensure ascending times and unique per-second timestamps
     const cds = [...cd].sort((a,b)=> a.t - b.t);
     // Sanitize outliers: compute median of recent closes
@@ -193,6 +206,54 @@ export default function Explorer(){
     } else {
       setCadenceSec(null);
     }
+    // EMA 12 overlay on price pane
+    if (show.ema12) {
+      if (!emaSRef.current && chartRef.current) {
+        const s = chartRef.current.addSeries(LineSeries, { color: '#60a5fa', lineWidth: 2 }, 0);
+        s.applyOptions({ lastValueVisible: false, priceLineVisible: false } as any);
+        emaSRef.current = s;
+      }
+      if (emaSRef.current) {
+        const data: any[] = [];
+        let last: number | null = null;
+        for (const f of [...ft].sort((a,b)=> a.t - b.t)) {
+          if (!isFiniteNum(f.ema_s)) continue;
+          const ts = toSec(f.t);
+          if (last !== null && ts === last) continue;
+          data.push({ time: ts, value: f.ema_s as number });
+          last = ts;
+        }
+        emaSRef.current.setData(data);
+      }
+    } else if (emaSRef.current && chartRef.current) {
+      chartRef.current?.removeSeries?.(emaSRef.current);
+      emaSRef.current = null;
+    }
+
+    // EMA 26 overlay on price pane
+    if (show.ema26) {
+      if (!emaLRef.current && chartRef.current) {
+        const s = chartRef.current.addSeries(LineSeries, { color: '#f43f5e', lineWidth: 2 }, 0);
+        s.applyOptions({ lastValueVisible: false, priceLineVisible: false } as any);
+        emaLRef.current = s;
+      }
+      if (emaLRef.current) {
+        const data: any[] = [];
+        let last: number | null = null;
+        for (const f of [...ft].sort((a,b)=> a.t - b.t)) {
+          if (!isFiniteNum(f.ema_l)) continue;
+          const ts = toSec(f.t);
+          if (last !== null && ts === last) continue;
+          data.push({ time: ts, value: f.ema_l as number });
+          last = ts;
+        }
+        emaLRef.current.setData(data);
+      }
+    } else if (emaLRef.current && chartRef.current) {
+      chartRef.current?.removeSeries?.(emaLRef.current);
+      emaLRef.current = null;
+    }
+
     // Manage RSI series lifecycle & data
     if (show.rsi) {
       if (!rsiRef.current && chartRef.current) {
@@ -207,13 +268,14 @@ export default function Explorer(){
         for (const f of fts) {
           const ts = toSec(f.t);
           if (last !== null && ts === last) continue;
-          rsiData.push({ time: ts, value: f.rsi });
+          if (!isFiniteNum(f.rsi)) continue;
+          rsiData.push({ time: ts, value: f.rsi as number });
           last = ts;
         }
         rsiRef.current.setData(rsiData);
       }
     } else if (rsiRef.current && chartRef.current) {
-      chartRef.current.removeSeries(rsiRef.current);
+      chartRef.current?.removeSeries?.(rsiRef.current);
       rsiRef.current = null;
     }
 
@@ -231,14 +293,95 @@ export default function Explorer(){
         for (const f of fts) {
           const ts = toSec(f.t);
           if (last !== null && ts === last) continue;
-          ewData.push({ time: ts, value: f.ewvol });
+          if (!isFiniteNum(f.ewvol)) continue;
+          ewData.push({ time: ts, value: f.ewvol as number });
           last = ts;
         }
         ewvolRef.current.setData(ewData);
       }
     } else if (ewvolRef.current && chartRef.current) {
-      chartRef.current.removeSeries(ewvolRef.current);
+      chartRef.current?.removeSeries?.(ewvolRef.current);
       ewvolRef.current = null;
+    }
+
+    // Manage ATR series
+    if (show.atr) {
+      if (!atrRef.current && chartRef.current) {
+        const s = chartRef.current.addSeries(LineSeries, { color: '#eab308', lineWidth: 2 }, 2);
+        s.applyOptions({ lastValueVisible: false, priceLineVisible: false } as any);
+        atrRef.current = s;
+      }
+      if (atrRef.current) {
+        const ats: any[] = [];
+        let last: number | null = null;
+        for (const f of [...ft].sort((a,b)=> a.t - b.t)) {
+          const ts = toSec(f.t);
+          if (last !== null && ts === last) continue;
+          if (!isFiniteNum(f.atr)) continue;
+          ats.push({ time: ts, value: f.atr as number });
+          last = ts;
+        }
+        atrRef.current.setData(ats);
+      }
+    } else if (atrRef.current && chartRef.current) {
+      chartRef.current?.removeSeries?.(atrRef.current);
+      atrRef.current = null;
+    }
+
+    // Manage Stochastic %K and %D series
+    if (show.stoch) {
+      if (!stochKRef.current && chartRef.current) {
+        const k = chartRef.current.addSeries(LineSeries, { color: '#0ea5e9', lineWidth: 1 }, 2);
+        k.applyOptions({ lastValueVisible: false, priceLineVisible: false } as any);
+        stochKRef.current = k;
+      }
+      if (!stochDRef.current && chartRef.current) {
+        const d = chartRef.current.addSeries(LineSeries, { color: '#f43f5e', lineWidth: 1, lineStyle: 1 }, 2);
+        d.applyOptions({ lastValueVisible: false, priceLineVisible: false } as any);
+        stochDRef.current = d;
+      }
+      if (stochKRef.current && stochDRef.current) {
+        const kData: any[] = [];
+        const dData: any[] = [];
+        let last: number | null = null;
+        for (const f of [...ft].sort((a,b)=> a.t - b.t)) {
+          const ts = toSec(f.t);
+          if (last !== null && ts === last) continue;
+          if (isFiniteNum(f.stoch_k)) kData.push({ time: ts, value: f.stoch_k as number });
+          if (isFiniteNum(f.stoch_d)) dData.push({ time: ts, value: f.stoch_d as number });
+          last = ts;
+        }
+        stochKRef.current.setData(kData);
+        stochDRef.current.setData(dData);
+      }
+    } else {
+      if (stochKRef.current && chartRef.current) { chartRef.current?.removeSeries?.(stochKRef.current); stochKRef.current = null; }
+      if (stochDRef.current && chartRef.current) { chartRef.current?.removeSeries?.(stochDRef.current); stochDRef.current = null; }
+    }
+
+    // Manage CVD series (volume delta)
+    if (show.cvd) {
+      if (!cvdRef.current && chartRef.current) {
+        const s = chartRef.current.addSeries(LineSeries, { color: '#f87171', lineWidth: 2 }, 1);
+        s.applyOptions({ lastValueVisible: false, priceLineVisible: false } as any);
+        cvdRef.current = s;
+      }
+      if (cvdRef.current) {
+        const data: any[] = [];
+        let last: number | null = null;
+        for (const f of [...ft].sort((a,b)=> a.t - b.t)) {
+          const ts = toSec(f.t);
+          if (last !== null && ts === last) continue;
+          const val = isFiniteNum(f.cvd) ? (f.cvd as number) : null;
+          if (val === null) continue;
+          data.push({ time: ts, value: val });
+          last = ts;
+        }
+        cvdRef.current.setData(data);
+      }
+    } else if (cvdRef.current && chartRef.current) {
+      chartRef.current?.removeSeries?.(cvdRef.current);
+      cvdRef.current = null;
     }
     // After setting data, keep current view
   }, [cd, ft, show]);
@@ -300,9 +443,14 @@ export default function Explorer(){
           )}
         </select>
         
-        <div className="ml-6 flex gap-2 text-sm">
-          <label className="flex items-center gap-1"><input type="checkbox" checked={show.rsi} onChange={e=>setShow(s=>({...s,rsi:e.target.checked}))}/>RSI</label>
-          <label className="flex items-center gap-1"><input type="checkbox" checked={show.ewvol} onChange={e=>setShow(s=>({...s,ewvol:e.target.checked}))}/>EWVol</label>
+        <div className="ml-6 flex gap-3 text-sm flex-wrap">
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={show.ema12} onChange={e=>setShow(s=>({...s,ema12:e.target.checked}))}/>EMA 12</label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={show.ema26} onChange={e=>setShow(s=>({...s,ema26:e.target.checked}))}/>EMA 26</label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={show.stoch} onChange={e=>setShow(s=>({...s,stoch:e.target.checked}))}/>Stochastic</label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={show.rsi} onChange={e=>setShow(s=>({...s,rsi:e.target.checked}))}/>RSI</label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={show.atr} onChange={e=>setShow(s=>({...s,atr:e.target.checked}))}/>ATR</label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={show.ewvol} onChange={e=>setShow(s=>({...s,ewvol:e.target.checked}))}/>EWVol</label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={show.cvd} onChange={e=>setShow(s=>({...s,cvd:e.target.checked}))}/>CVD</label>
         </div>
       </div>
       {cadenceSec && (
@@ -310,7 +458,7 @@ export default function Explorer(){
       )}
       <div ref={containerRef} className="rounded-xl border border-neutral-800 overflow-hidden" />
       {loading && <div className="text-neutral-400 text-sm">Loading older data…</div>}
-      <p className="text-neutral-400 text-sm">Toggle overlays; more features will be added here (ATR, Stoch, OBI, CVD markers) next module.</p>
+      <p className="text-neutral-400 text-sm">Toggle overlays; indicators are computed from HL bars. Stoch default is on.</p>
     </main>
   );
 }

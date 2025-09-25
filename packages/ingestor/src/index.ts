@@ -1,4 +1,5 @@
 import { loadConfig, log } from '@hyperlocal/core';
+import { initDuckDb } from '@hyperlocal/storage';
 import { HlWsClient } from './ws-client.js';
 import { CandleBackfill } from './backfill.js';
 import { BinanceBackfill } from './binance-backfill.js';
@@ -31,6 +32,8 @@ class Ingestor {
 
   async start() {
     if (this.status.running) return;
+    // Ensure DB schema is initialized/migrated before any writes/reads
+    try { await initDuckDb(); } catch (e) { log.warn({ component: 'ingestor', err: String(e) }, 'initDuckDb failed'); }
     const cfg = loadConfig();
     // 1) Hyperliquid backfill first
     log.info({ component: 'ingestor', step: 'backfill_start' }, 'Starting Hyperliquid backfill');

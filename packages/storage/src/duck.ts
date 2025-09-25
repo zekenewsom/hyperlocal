@@ -42,10 +42,15 @@ export async function initDuckDb(): Promise<void> {
       cvd DOUBLE, cvd_slope DOUBLE, obi_top DOUBLE, obi_cum DOUBLE, microprice DOUBLE,
       var_spike DOUBLE, vol_regime TEXT, volp DOUBLE,
       hh_ll_state TEXT, hh_count INTEGER, hl_count INTEGER,
+      ema_s DOUBLE, ema_l DOUBLE,
       computed_at TIMESTAMP,
       PRIMARY KEY (src, coin, interval, close_time)
     );
   `);
+
+  // Backfill columns if the table already existed without EMA fields
+  try { await sql(conn, `ALTER TABLE features ADD COLUMN IF NOT EXISTS ema_s DOUBLE;`); } catch {}
+  try { await sql(conn, `ALTER TABLE features ADD COLUMN IF NOT EXISTS ema_l DOUBLE;`); } catch {}
 
   await sql(conn, `
     CREATE TABLE IF NOT EXISTS signals (
