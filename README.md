@@ -22,23 +22,21 @@ Hyperlocal is a local‑only, TypeScript‑first toolkit for ingesting Hyperliqu
 - `scripts/` — Python tools (e.g., `binance_backfill.py`)
 
 ## Quickstart
-1) Install + build packages
+1) One‑command start
 - `pnpm install`
-- `pnpm --filter '!ui' -r build`
+- `pnpm start`
+  - Starts the UI dev server on `http://localhost:3000`
+  - Auto‑initializes DuckDB and views on first API request
+  - Auto‑starts the ingestor (startup backfill → warmup → Binance backfill → WS live)
+  - Open:
+    - Explorer: `/explorer` (auto full‑history load per interval; infinite scroll; overlays)
+    - Data Health: `/data-health` (lake status, per‑source breakdown, CSV export, gaps panel)
+    - Ingestor: `/ingestor` (live status, message counts, startup progress)
 
-2) Initialize storage (optional seed)
-- `pnpm db:init`
-- `pnpm storage:seed`
-- `pnpm storage:verify`
+2) (Optional) Storage helpers
+- `pnpm db:init` · `pnpm storage:seed` · `pnpm storage:verify`
 
-3) Run the UI (dev)
-- `pnpm --filter ui dev`
-- Open `http://localhost:3000`
-  - Data Health: `/data-health` → Initialize DuckDB → Refresh
-  - Ingestor: `/ingestor` → Start (runs gap backfill then WS live)
-  - Explorer: `/explorer` → pan left to auto‑load older history (HL first, Binance fills earlier)
-
-4) (Optional) Historical backfill from Binance (Python)
+3) (Optional) Historical backfill from Binance (Python)
 - Install: `pip install python-binance pyarrow duckdb pyyaml`
 - Recommended: run HL first so earliest HL boundary exists (Ingestor → Start). Then:
   - Global: `pnpm binance:backfill -- --base-url https://api.binance.com --coins BTC --intervals 1m 5m 15m 1h 4h 1d`
@@ -47,14 +45,18 @@ Hyperlocal is a local‑only, TypeScript‑first toolkit for ingesting Hyperliqu
   - Only pulls bars older than the earliest Hyperliquid bar (per `{coin,interval}`), and stops before any existing Binance bars → no overlap/duplicates.
   - Writes Parquet with `src='binance'`. UI/API dedupe uses HL when both exist for the same timestamp.
 
-Notes
+Notes & Behavior
 - Startup backfill respects HL rate weights and windows (≤3000 bars). It retries ms→sec and normalizes response shapes to ensure full history.
 - Storage partitions: `data/hyperliquid/parquet/{coin}/{interval}/date=YYYY-MM-DD/*.parquet` (UTC date). DuckDB views read the lake with Hive partitioning.
 - Testnet: override `configs/local.config.yaml` → `ws.url: wss://api.hyperliquid-testnet.xyz/ws`.
-- Explorer: infinite scroll (candles + features). Dedupe at API ensures HL precedence; Binance fills older gaps.
-- Data Health has per‑source breakdown to verify HL vs Binance row counts and ranges.
+- Explorer: infinite scroll (candles + features) and auto‑hydration to full history per interval; dedupe at API ensures HL precedence; Binance fills older gaps. Newly fetched bars extend the left viewport as you scroll.
+- Data Health: per‑source breakdown, CSV export by coin/interval, live tick indicator, and a Gaps panel with on‑demand “Fill Now”.
+- Ingestor: 
+  - Startup: Hyperliquid backfill → feature warmup → Binance historical backfill, then WS live.
+  - Gap protection: detects and fills gaps mid‑session; scans periodically (15m) and fills any holes; exposes one‑click fill via API/UI.
 
 ## Scripts
+- `pnpm start` — starts UI and auto‑starts the ingestor (recommended for dev)
 - `pnpm run ci` — typecheck, lint, tests, forbidden‑symbols scan
 - `pnpm --filter @hyperlocal/storage test` — storage tests
 - `pnpm --filter @hyperlocal/ingestor test` — ingestor tests
@@ -62,8 +64,9 @@ Notes
 
 ## How It Works
 - Ingestor (Hyperliquid)
-  - Startup: gap‑aware REST backfill (windowed, rate‑limited), then WS live (candles/trades/book/BBO) with heartbeats.
-  - Features: warm‑up from recent HL candles; RSI/EWVol/ATR/Stoch computed per close and aligned to bar opens.
+  - Startup: gap‑aware REST backfill (windowed, rate‑limited), feature warmup, Binance historical backfill, then WS live (candles/trades/book/BBO) with heartbeats.
+  - Mid‑session: live gap detection with targeted backfill; periodic gap scans.
+  - Features: computed from HL candles; aligned to bar opens (RSI/EWVol/ATR/Stoch/CVD, etc.).
 - Storage
   - Parquet lake partitioned by `{coin}/{interval}/date=YYYY-MM-DD/` with schema: `src, coin, interval, open_time, close_time, o/h/l/c, volume, trade_count, vwap, date`.
   - DuckDB views: `candles_pq` (raw), `candles_pq_ordered` (TIMESTAMP columns for open/close).
@@ -73,7 +76,7 @@ Notes
 - UI + APIs
   - Candles API merges sources with HL precedence per `open_time`, returns seconds `t` via `epoch(open_time)`.
   - Features API aligns indicator timestamps to bar opens; supports `before` for paging.
-  - Explorer: infinite scroll (candles + features page together); Data Health shows per‑source breakdown.
+  - Explorer: infinite scroll + auto full‑history, live tick indicator; Data Health shows per‑source breakdown, CSV export, gaps panel.
 
 See also: RUNBOOK.md for daily operations.
 

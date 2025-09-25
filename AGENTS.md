@@ -10,6 +10,7 @@
 See also: RUNBOOK.md for day‑to‑day operations.
 
 ## Build, Test, and Development Commands
+- `pnpm start`: one‑command start (UI dev + auto‑start ingestor).
 - `pnpm dev`: run package dev tasks in parallel (watchers).
 - `pnpm --filter ui dev`: run the UI locally (recommended).
 - `pnpm test`: run unit/integration tests.
@@ -37,8 +38,8 @@ See also: RUNBOOK.md for day‑to‑day operations.
 - Features (RSI/EWVol) are computed from HL bars; Explorer overlays align with bar opens.
 
 ## UI Behavior
-- Explorer: infinite scroll (auto‑loads older candles and features as you pan left), HL‑over‑Binance dedupe.
-- Data Health: includes per‑source breakdown (HL vs Binance) with row counts and min/max ranges.
+- Explorer: auto full‑history hydration per interval + infinite scroll, HL‑over‑Binance dedupe, live tick indicator.
+- Data Health: per‑source breakdown (HL vs Binance) with row counts and ranges, CSV export by coin/interval, gaps panel (lookback, Refresh, Fill Now), live tick indicator.
 - Global nav: sticky header across pages for quick navigation.
 
 ## Testing Guidelines
@@ -55,7 +56,14 @@ See also: RUNBOOK.md for day‑to‑day operations.
 ## Security & Configuration Tips
 - Local-only by design; no secrets required. Switch to testnet in `configs/local.config.yaml` (`ws.url`).
 - Signals-only guardrail: `scripts/forbidden-check.cjs` blocks trading/execution symbols (CI).
-- UI Data Health shows per-interval row breakdown; verify after ingestor Start.
+- Auto‑init DuckDB/views on first API request; no manual init required.
+- UI Data Health shows per-interval row breakdown; verify after ingestor Start (auto‑started by `pnpm start`).
+
+## Gap Protection
+- Startup: after Hyperliquid backfill, scan recent HL history for holes and fill.
+- Mid‑session: on WS candle, detect missed intervals and backfill targeted ranges.
+- Periodic: every 15 minutes, rescan recent data and fill any gaps.
+- UI/API: Data Health gaps panel with Refresh/Fill Now actions.
 - Binance Python backfill:
   - Preferred domain: `api.binance.com` (deeper history). If restricted, use `api.binance.us`.
   - Symbol mapping defaults to `{coin}USDT`. Override with `--symbol-map "BTC:BTCUSDT"` or config.
