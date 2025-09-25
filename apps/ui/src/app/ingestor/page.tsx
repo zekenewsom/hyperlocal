@@ -11,7 +11,7 @@ type St = {
 export default function IngestorPage() {
   const [st, setSt] = useState<St | null>(null);
   const [busy, setBusy] = useState(false);
-  const [resetBusy, setResetBusy] = useState(false);
+  const [timeSinceTick, setTimeSinceTick] = useState<number|null>(null);
 
   async function refresh() {
     const r = await fetch('/api/ingestor/status', { cache: 'no-store' });
@@ -23,25 +23,44 @@ export default function IngestorPage() {
 
   useEffect(()=>{ refresh(); }, []);
 
+  // Poll for live tick recency
+  useEffect(()=>{
+    let mounted = true;
+    const poll = async () => {
+      try{
+        const r = await fetch('/api/ingestor/status', { cache: 'no-store' });
+        if (!mounted) return;
+        if (r.ok) {
+          const s = await r.json();
+          if (s?.lastMessageTimestamp) setTimeSinceTick(Date.now() - Number(s.lastMessageTimestamp));
+          else setTimeSinceTick(null);
+        }
+      } catch {}
+    };
+    poll();
+    const id = setInterval(poll, 2000);
+    return ()=> { mounted=false; clearInterval(id); };
+  }, []);
+
   return (
     <main className="p-6 space-y-4">
-      <h2 className="text-xl font-semibold">Ingestor</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Ingestor</h2>
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${
+            timeSinceTick === null ? 'bg-neutral-600' :
+            (timeSinceTick < 5000 ? 'bg-emerald-500 animate-pulse' : timeSinceTick < 15000 ? 'bg-yellow-500' : 'bg-red-500')
+          }`} />
+          <span className="text-sm text-neutral-400">
+            {timeSinceTick === null ? 'Ingestor offline' : `Live tick: ${(timeSinceTick/1000).toFixed(1)}s ago`}
+          </span>
+        </div>
+      </div>
       <div className="rounded-xl border border-neutral-800 p-4 space-y-3">
         <div className="flex gap-3">
           <button onClick={start} disabled={busy || st?.running} className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700">Start</button>
           <button onClick={stop} disabled={busy || !st?.running} className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700">Stop</button>
           <button onClick={refresh} className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700">Refresh</button>
-          <button
-            onClick={async ()=>{
-              setResetBusy(true);
-              try {
-                await fetch('/api/storage/reset-1m', { method: 'POST' });
-                await refresh();
-              } finally { setResetBusy(false); }
-            }}
-            disabled={resetBusy}
-            className="px-3 py-1.5 rounded-lg bg-red-900/50 hover:bg-red-900/60 border border-red-800 text-red-200"
-          >{resetBusy ? 'Resetting 1m…' : 'Reset 1m Lake + Backfill'}</button>
         </div>
         <div className="text-sm text-neutral-400">WS URL: {st?.ws?.url ?? '-'}</div>
         <div className="flex gap-6">

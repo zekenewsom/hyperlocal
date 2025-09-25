@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
-import { storageStatus, candlesBreakdown, ensureBaseDirs, getDb, parquetRoot } from '@hyperlocal/storage';
+import { storageStatus, candlesBreakdown, ensureBaseDirs, getDb, parquetRoot, initDuckDb } from '@hyperlocal/storage';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  // Ensure DB and views exist so the page never requires manual init
   ensureBaseDirs();
+  try { await initDuckDb(); } catch {}
   const st = await storageStatus();
   const breakdown = await candlesBreakdown();
   // Inline fallback for per-source breakdown to avoid dependency on a new export build

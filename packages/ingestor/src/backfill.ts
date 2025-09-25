@@ -79,6 +79,23 @@ export class CandleBackfill {
     }
   }
 
+  async fillGap(coin: string, interval: Interval, startTime: number, endTime: number) {
+    const items = Math.ceil((endTime - startTime + 1) / intervalMs(interval));
+    if (items <= 0) return;
+    const weight = 20 + Math.ceil(items / 60);
+    while (!this.weightBucket.take(weight)) await new Promise(r => setTimeout(r, 100));
+    try {
+      const rows = await this.fetchCandleSnapshot(coin, interval, startTime, endTime);
+      const candles = rows.map(toCandle);
+      if (candles.length > 0) {
+        await writeCandlesParquet(candles);
+        console.log(`[ingestor] Filled gap for ${coin}:${interval} with ${candles.length} rows.`);
+      }
+    } catch (e) {
+      console.error(`[ingestor] Error filling gap for ${coin}:${interval}`, e);
+    }
+  }
+
   async fetchCandleSnapshot(coin: string, interval: Interval, startTime: number, endTime: number): Promise<WsCandle[]> {
     // Helper to normalize various API response shapes
     const normalize = (raw: any): WsCandle[] => {

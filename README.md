@@ -4,8 +4,10 @@ Hyperlocal is a local‑only, TypeScript‑first toolkit for ingesting Hyperliqu
 
 ## Highlights
 - Local data engine: Parquet lake + DuckDB views
-- Rate‑safe ingestor: WS heartbeat, backfill via `candleSnapshot`, token buckets
-- UI (Next.js): Data Health, Ingestor controls, dark theme
+- Rate‑safe Hyperliquid ingestor: WS heartbeat, backfill via `candleSnapshot`, token buckets
+- Historical backfill (Binance via Python): paged klines (1000 bars), overlap‑safe, HL precedence
+- Unified Explorer: infinite scroll, HL‑over‑Binance dedupe, overlays aligned to bar opens
+- UI (Next.js): Data Health (with per‑source breakdown), Ingestor controls, sticky nav, dark theme
 - Strong contracts: typed models (TS), zod‑validated config
 - Guardrails: repo‑wide forbidden symbols scanner (no trading endpoints)
 
@@ -17,6 +19,7 @@ Hyperlocal is a local‑only, TypeScript‑first toolkit for ingesting Hyperliqu
 - `packages/ingestor` — HL WS client, backfill engine, controller
 - `packages/cli` — CLI entry (`hyperlocal`) for DB/init/verify
 - `configs/` — runtime config (`default.config.yaml`, optional `local.config.yaml`)
+- `scripts/` — Python tools (e.g., `binance_backfill.py`)
 
 ## Quickstart
 1) Install + build packages
@@ -33,16 +36,46 @@ Hyperlocal is a local‑only, TypeScript‑first toolkit for ingesting Hyperliqu
 - Open `http://localhost:3000`
   - Data Health: `/data-health` → Initialize DuckDB → Refresh
   - Ingestor: `/ingestor` → Start (runs gap backfill then WS live)
+  - Explorer: `/explorer` → pan left to auto‑load older history (HL first, Binance fills earlier)
+
+4) (Optional) Historical backfill from Binance (Python)
+- Install: `pip install python-binance pyarrow duckdb pyyaml`
+- Recommended: run HL first so earliest HL boundary exists (Ingestor → Start). Then:
+  - Global: `pnpm binance:backfill -- --base-url https://api.binance.com --coins BTC --intervals 1m 5m 15m 1h 4h 1d`
+  - US only: `pnpm binance:backfill -- --base-url https://api.binance.us --coins BTC --intervals 1m 5m 15m 1h 4h 1d`
+- Notes:
+  - Only pulls bars older than the earliest Hyperliquid bar (per `{coin,interval}`), and stops before any existing Binance bars → no overlap/duplicates.
+  - Writes Parquet with `src='binance'`. UI/API dedupe uses HL when both exist for the same timestamp.
 
 Notes
 - Startup backfill respects HL rate weights and windows (≤3000 bars). It retries ms→sec and normalizes response shapes to ensure full history.
 - Storage partitions: `data/hyperliquid/parquet/{coin}/{interval}/date=YYYY-MM-DD/*.parquet` (UTC date). DuckDB views read the lake with Hive partitioning.
 - Testnet: override `configs/local.config.yaml` → `ws.url: wss://api.hyperliquid-testnet.xyz/ws`.
+- Explorer: infinite scroll (candles + features). Dedupe at API ensures HL precedence; Binance fills older gaps.
+- Data Health has per‑source breakdown to verify HL vs Binance row counts and ranges.
 
 ## Scripts
 - `pnpm run ci` — typecheck, lint, tests, forbidden‑symbols scan
 - `pnpm --filter @hyperlocal/storage test` — storage tests
 - `pnpm --filter @hyperlocal/ingestor test` — ingestor tests
+- `pnpm binance:backfill` — run Python Binance historical backfill
+
+## How It Works
+- Ingestor (Hyperliquid)
+  - Startup: gap‑aware REST backfill (windowed, rate‑limited), then WS live (candles/trades/book/BBO) with heartbeats.
+  - Features: warm‑up from recent HL candles; RSI/EWVol/ATR/Stoch computed per close and aligned to bar opens.
+- Storage
+  - Parquet lake partitioned by `{coin}/{interval}/date=YYYY-MM-DD/` with schema: `src, coin, interval, open_time, close_time, o/h/l/c, volume, trade_count, vwap, date`.
+  - DuckDB views: `candles_pq` (raw), `candles_pq_ordered` (TIMESTAMP columns for open/close).
+- Binance historical (Python)
+  - Pulls klines in 1000‑bar pages backward from `(earliest HL open − 1 ms)`; stops before earliest Binance bar to avoid overlap.
+  - Writes Parquet with `src='binance'` (keeps provenance and prevents interference).
+- UI + APIs
+  - Candles API merges sources with HL precedence per `open_time`, returns seconds `t` via `epoch(open_time)`.
+  - Features API aligns indicator timestamps to bar opens; supports `before` for paging.
+  - Explorer: infinite scroll (candles + features page together); Data Health shows per‑source breakdown.
+
+See also: RUNBOOK.md for daily operations.
 
 ## Safety & Guardrails
 - Signals‑only policy enforced by `scripts/forbidden-check.cjs` (CI fails on trading/execution symbols)
@@ -51,4 +84,5 @@ Notes
 ## Troubleshooting
 - Prefer dev mode for the UI (`pnpm --filter ui dev`). Some environments can show harmless build warnings for optional `ws` addons.
 - If Data Health shows low rows after Start, wait and Refresh (backfill is rate‑limited) and verify partitions in `data/hyperliquid/parquet`.
-
+- If python‑binance errors on restricted location for `.com`, pass `--base-url https://api.binance.us` (script auto‑falls back).
+- If `configs/local.config.yaml` has YAML errors, the Python script will warn and continue with defaults; you can run with CLI flags only.

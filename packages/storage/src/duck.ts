@@ -152,6 +152,103 @@ export async function candlesBreakdown(): Promise<Array<{ coin: string; interval
   return out;
 }
 
+// Returns latest open_time (ms epoch) per series as Map("COIN:INTERVAL" -> ms)
+export async function getLastCandleTimestamps(): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (!fs.existsSync(dbPath())) return map;
+  const conn = getDb().connect();
+  try {
+    await createParquetViews(conn);
+    const rows = await new Promise<any[]>((res, rej)=> conn.all(`
+      SELECT coin || ':' || interval AS key, MAX(open_time) AS max_ts
+      FROM candles_pq
+      GROUP BY key
+    `, (e,r)=> e?rej(e):res(r)));
+    for (const r of rows) {
+      const k = String((r as any).key);
+      const v = Number((r as any).max_ts);
+      if (Number.isFinite(v)) map.set(k, v);
+    }
+  } catch (e) {
+    console.error('[storage] Failed to get last candle timestamps', e);
+  } finally {
+    conn.close();
+  }
+  return map;
+}
+
+// Finds gaps in Hyperliquid candles by detecting jumps larger than interval size between consecutive open_time values.
+// Optional sinceMs restricts the scan to recent data for performance.
+export async function findHyperliquidGaps(sinceMs?: number): Promise<Array<{ coin: string; interval: string; gap_start: number; gap_end: number; bars_missing: number }>> {
+  const out: Array<{ coin: string; interval: string; gap_start: number; gap_end: number; bars_missing: number }> = [];
+  if (!fs.existsSync(dbPath())) return out;
+  const conn = getDb().connect();
+  try {
+    await createParquetViews(conn);
+    const sinceCond = sinceMs && Number.isFinite(sinceMs) ? `AND open_time >= ${Number(sinceMs)}` : '';
+    const q = `
+      WITH ordered AS (
+        SELECT coin, interval, CAST(open_time AS BIGINT) AS t
+        FROM candles_pq
+        WHERE src='hyperliquid' ${sinceCond}
+        ORDER BY coin, interval, t
+      ),
+      gaps AS (
+        SELECT coin, interval,
+               LAG(t) OVER (PARTITION BY coin, interval ORDER BY t) AS prev,
+               t AS curr
+        FROM ordered
+      )
+      SELECT coin, interval,
+             (prev + CASE interval
+                        WHEN '1m' THEN 60000
+                        WHEN '5m' THEN 300000
+                        WHEN '15m' THEN 900000
+                        WHEN '1h' THEN 3600000
+                        WHEN '4h' THEN 14400000
+                        WHEN '1d' THEN 86400000
+                        ELSE 0
+                      END) AS gap_start,
+             (curr - 1) AS gap_end,
+             CAST(((curr - prev) / CASE interval
+                        WHEN '1m' THEN 60000
+                        WHEN '5m' THEN 300000
+                        WHEN '15m' THEN 900000
+                        WHEN '1h' THEN 3600000
+                        WHEN '4h' THEN 14400000
+                        WHEN '1d' THEN 86400000
+                        ELSE 0
+                      END) - 1 AS BIGINT) AS bars_missing
+      FROM gaps
+      WHERE prev IS NOT NULL
+        AND (curr - prev) > CASE interval
+                        WHEN '1m' THEN 60000
+                        WHEN '5m' THEN 300000
+                        WHEN '15m' THEN 900000
+                        WHEN '1h' THEN 3600000
+                        WHEN '4h' THEN 14400000
+                        WHEN '1d' THEN 86400000
+                        ELSE 0
+                      END
+      ORDER BY coin, interval, gap_start;
+    `;
+    const rows = await new Promise<any[]>((res, rej)=> conn.all(q, (e,r)=> e?rej(e):res(r)));
+    for (const r of rows) {
+      const coin = String((r as any).coin);
+      const interval = String((r as any).interval);
+      const gap_start = Number((r as any).gap_start);
+      const gap_end = Number((r as any).gap_end);
+      const bars_missing = Number((r as any).bars_missing ?? 0);
+      if (Number.isFinite(gap_start) && Number.isFinite(gap_end) && bars_missing > 0) {
+        out.push({ coin, interval, gap_start, gap_end, bars_missing });
+      }
+    }
+  } finally {
+    conn.close();
+  }
+  return out;
+}
+
 export async function candlesBreakdownBySource(): Promise<Array<{ src: string; coin: string; interval: string; rows: number; min_ms: number; max_ms: number }>> {
   const out: Array<{ src: string; coin: string; interval: string; rows: number; min_ms: number; max_ms: number }> = [];
   if (!fs.existsSync(dbPath())) return out;

@@ -43,6 +43,7 @@ class PerSeries {
 export class FeatureEngine {
   private m = new Map<string, PerSeries>();
   private running = false;
+  private writeConn: any | null = null;
 
   private key(coin:string, itv:Interval){ return `${coin}:${itv}`; }
   private get(coin:string, itv:Interval){
@@ -52,7 +53,17 @@ export class FeatureEngine {
   }
 
   start(){ this.running = true; }
-  stop(){ this.running = false; }
+  stop(){
+    this.running = false;
+    try { this.writeConn?.close?.(); } catch {}
+    this.writeConn = null;
+  }
+
+  private getWriteConn(){
+    if (this.writeConn) return this.writeConn;
+    this.writeConn = getDb().connect();
+    return this.writeConn;
+  }
 
   // Warm-up internal indicator states by replaying recent Hyperliquid candles from storage.
   // This computes and persists features for those historical bars as well.
@@ -149,10 +160,11 @@ export class FeatureEngine {
     const hl_count = hh_ll_state==='trend_down' ? 1 : 0;
 
     // persist
-    const conn = getDb().connect();
+    const conn = this.getWriteConn();
     try {
       const closeSec = c.closeTime / 1000.0;
-      const delSql = `DELETE FROM features WHERE src='hyperliquid' AND coin='${c.coin}' AND interval='${c.interval}' AND epoch_ms(close_time)=${c.closeTime}`;
+      // Delete by exact same timestamp expression used for insert to avoid float/rounding mismatches
+      const delSql = `DELETE FROM features WHERE src='hyperliquid' AND coin='${c.coin}' AND interval='${c.interval}' AND close_time = to_timestamp(${closeSec})`;
       await new Promise<void>((res, rej)=> conn.all(delSql, (e)=> e?rej(e):res()));
       const num = (x: number) => (Number.isFinite(x) ? String(x) : 'NULL');
       const str = (s: string) => `'${s.replace(/'/g, "''")}'`;
@@ -176,7 +188,7 @@ export class FeatureEngine {
         )`;
       await new Promise<void>((res, rej)=> conn.all(insertSql, (e)=> e?rej(e):res()));
     } finally {
-      conn.close();
+      // keep connection open for reuse while running
     }
 
     // roll prevClose & clear bar aggregates
