@@ -163,13 +163,10 @@ export class FeatureEngine {
     const conn = this.getWriteConn();
     try {
       const closeSec = c.closeTime / 1000.0;
-      // Delete by exact same timestamp expression used for insert to avoid float/rounding mismatches
-      const delSql = `DELETE FROM features WHERE src='hyperliquid' AND coin='${c.coin}' AND interval='${c.interval}' AND close_time = to_timestamp(${closeSec})`;
-      await new Promise<void>((res, rej)=> conn.all(delSql, (e)=> e?rej(e):res()));
       const num = (x: number) => (Number.isFinite(x) ? String(x) : 'NULL');
       const str = (s: string) => `'${s.replace(/'/g, "''")}'`;
       const insertSql = `
-        INSERT INTO features (
+        INSERT OR REPLACE INTO features (
           src, coin, interval, close_time,
           ret_log, ret_pct, ewvar, ewvol, atr,
           rsi, stoch_k, stoch_d, vol_z,
